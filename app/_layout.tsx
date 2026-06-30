@@ -8,22 +8,11 @@ import { SplashScreen, Stack } from 'expo-router';
 import { SQLiteProvider } from 'expo-sqlite';
 import { useEffect } from 'react';
 import 'react-native-reanimated';
+import { DB_NAME } from './db/db';
+import { init_User_Tables } from './db/user_data';
 
 async function migrateDbIfNeeded(db: any) {
-  await db.execAsync(`
-    PRAGMA journal_mode = WAL;
-    
-    CREATE TABLE IF NOT EXISTS users (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      fname TEXT NOT NULL,
-      lname TEXT NOT NULL,
-      email TEXT NOT NULL UNIQUE,
-      password TEXT NOT NULL,
-      pnumber TEXT NOT NULL,
-      birthdate TEXT NOT NULL,
-      official_id TEXT NOT NULL UNIQUE
-    );
-  `);
+  await init_User_Tables();
 }
 
 export default function RootLayout() {
@@ -44,7 +33,7 @@ export default function RootLayout() {
   }
   
   return (
-  <SQLiteProvider databaseName="mydb_v2.db" onInit={migrateDbIfNeeded}>
+  <SQLiteProvider databaseName={DB_NAME} onInit={migrateDbIfNeeded}>
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="index" options={{ headerShown: false }} />
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
