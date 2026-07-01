@@ -6,7 +6,7 @@ export const init_User_Tables = async () => {
         await db.execAsync(`
             CREATE TABLE IF NOT EXISTS Users (
                 id TEXT PRIMARY KEY,
-                username TEXT NOT NULL UNIQUE,
+                username TEXT UNIQUE,
                 email TEXT NOT NULL UNIQUE,
                 password TEXT NOT NULL,
                 Fname TEXT NOT NULL,

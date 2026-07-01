@@ -1,39 +1,86 @@
 import { Ionicons } from '@expo/vector-icons';
+import AntDesign from '@expo/vector-icons/AntDesign';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import Checkbox from 'expo-checkbox';
 import * as Crypto from 'expo-crypto';
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
-import { useRef, useState } from 'react';
-import { Alert, Animated, Easing, LayoutChangeEvent, Modal, Platform, SafeAreaView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { Alert, Animated, Easing, Keyboard, KeyboardAvoidingView, LayoutChangeEvent, Modal, Platform, StyleSheet, Text, TextInput, TouchableOpacity, TouchableWithoutFeedback, UIManager, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import Google from '../assets/images/Google.svg';
 import SignInBox from '../components/Sign_in_box.svg';
-import SignUpBox from '../components/SignUpBox.svg';
+
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
 
 export default function UserAuthScreen() {
   const [activeTab, setActiveTab] = useState<'signin' | 'signup'>('signin');
-  const [fname, setFname] = useState('');
-  const [lname, setLname] = useState('');
+
+  // ── Sign In fields ──
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [isSignInPasswordVisible, setIsSignInPasswordVisible] = useState(false);
+  const [isChecked, setChecked] = useState(false);
+
+  // ── Sign In errors ──
+  const [signInEmailError, setSignInEmailError] = useState('');
+  const [signInPasswordError, setSignInPasswordError] = useState('');
+  const [signInGeneralError, setSignInGeneralError] = useState('');
+
+  // ── Sign Up fields ──
+  const [fname, setFname] = useState('');
+  const [lname, setLname] = useState('');
+  const [suEmail, setSuEmail] = useState('');
+  const [suPassword, setSuPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [isSignUpPasswordVisible, setIsSignUpPasswordVisible] = useState(false);
+  const [isConfirmPasswordVisible, setIsConfirmPasswordVisible] = useState(false);
   const [pnumber, setPnumber] = useState('');
   const [birthdate, setBirthdate] = useState('');
-  const [date, setDate] = useState(new Date()); 
+  const [date, setDate] = useState(new Date());
   const [showPicker, setShowPicker] = useState(false);
   const [officialIdUri, setOfficialIdUri] = useState('');
+
+  // ── Sign Up errors ──
+  const [fnameError, setFnameError] = useState('');
+  const [lnameError, setLnameError] = useState('');
+  const [signUpEmailError, setSignUpEmailError] = useState('');
+  const [signUpPasswordError, setSignUpPasswordError] = useState('');
+  const [conPasswordError, setConPasswordError] = useState('');
+  const [confirmPasswordTouched, setConfirmPasswordTouched] = useState(false);
+  const [pnumberError, setPnumberError] = useState('');
+  const [birthdateError, setBirthdateError] = useState('');
+  const [officialIdError, setOfficialIdError] = useState('');
+  const [signUpGeneralError, setSignUpGeneralError] = useState('');
+
   const router = useRouter();
   const db = useSQLiteContext();
 
+  const MIN_PASSWORD_LENGTH = 8;
+  const isEmailValid = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
+
+  // ── Pill animation ──
   const slideX = useRef(new Animated.Value(0)).current;
   const slideWidth = useRef(new Animated.Value(0)).current;
-
   const formAnim = useRef(new Animated.Value(0)).current;
+  const hasInit = useRef(false);
+
+  // ── Input refs ──
+  const LnameInputRef = useRef<TextInput>(null);
+  const SuEmailInputRef = useRef<TextInput>(null);
+  const SuPasswordInputRef = useRef<TextInput>(null);
+  const PnumInputRef = useRef<TextInput>(null);
+  const ConfirmPasswordInputRef = useRef<TextInput>(null);
+  const EmailInputRef = useRef<TextInput>(null);
+  const PasswordInputRef = useRef<TextInput>(null);
 
   const signInOpacity = formAnim.interpolate({
     inputRange: [0, 0.5, 1],
     outputRange: [1, 0, 0],
   });
-
   const signUpOpacity = formAnim.interpolate({
     inputRange: [0, 0.5, 1],
     outputRange: [0, 0, 1],
@@ -45,66 +92,158 @@ export default function UserAuthScreen() {
   const [signInLayout, setSignInLayout] = useState({ x: 0, width: 0 });
   const [signUpLayout, setSignUpLayout] = useState({ x: 0, width: 0 });
 
-  const [isChecked, setChecked] = useState(false);
+  // ── Validation ──
+  const validateSignIn = () => {
+    let isValid = true;
+    setSignInEmailError('');
+    setSignInPasswordError('');
+    setSignInGeneralError('');
 
-  const handleSignIn = async () => {
-    if (!email || !password) {
-      Alert.alert('Error', 'Please fill out all fields.');
-      return;
+    if (!email.trim()) {
+      setSignInEmailError('Email is required');
+      isValid = false;
+    } else if (!isEmailValid(email)) {
+      setSignInEmailError('Enter a valid email address');
+      isValid = false;
     }
-    try {
-      const hashedPassword = await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256,password);
 
+    if (!password) {
+      setSignInPasswordError('Password is required');
+      isValid = false;
+    } else if (password.length < MIN_PASSWORD_LENGTH) {
+      setSignInPasswordError(`Must be at least ${MIN_PASSWORD_LENGTH} characters`);
+      isValid = false;
+    }
+
+    return isValid;
+  };
+
+  const validateSignUp = () => {
+    let isValid = true;
+    setFnameError('');
+    setLnameError('');
+    setSignUpEmailError('');
+    setSignUpPasswordError('');
+    setConPasswordError('');
+    setPnumberError('');
+    setBirthdateError('');
+    setOfficialIdError('');
+    setSignUpGeneralError('');
+
+    if (!fname.trim()) {
+      setFnameError('First name is required');
+      isValid = false;
+    }
+    if (!lname.trim()) {
+      setLnameError('Last name is required');
+      isValid = false;
+    }
+    if (!suEmail.trim()) {
+      setSignUpEmailError('Email is required');
+      isValid = false;
+    } else if (!isEmailValid(suEmail)) {
+      setSignUpEmailError('Enter a valid email address');
+      isValid = false;
+    }
+    if (!pnumber.trim()) {
+      setPnumberError('Phone number is required');
+      isValid = false;
+    } else if (!/^\+?[\d\s\-()]{7,15}$/.test(pnumber.trim())) {
+      setPnumberError('Enter a valid phone number');
+      isValid = false;
+    }
+    if (!birthdate) {
+      setBirthdateError('Date of birth is required');
+      isValid = false;
+    }
+    if (!officialIdUri) {
+      setOfficialIdError('Please upload your National ID');
+      isValid = false;
+    }
+    if (!suPassword) {
+      setSignUpPasswordError('Password is required');
+      isValid = false;
+    } else if (suPassword.length < MIN_PASSWORD_LENGTH) {
+      setSignUpPasswordError(`Must be at least ${MIN_PASSWORD_LENGTH} characters`);
+      isValid = false;
+    }
+    if (!confirmPassword) {
+      setConfirmPasswordTouched(true);
+      setConPasswordError('Please confirm your password');
+      isValid = false;
+    } else if (confirmPassword !== suPassword) {
+      setConfirmPasswordTouched(true);
+      setConPasswordError('Passwords do not match');
+      isValid = false;
+    }
+
+    return isValid;
+  };
+
+  // ── Handlers ──
+  const handleSignIn = async () => {
+    if (!validateSignIn()) return;
+    try {
+      const hashedPassword = await Crypto.digestStringAsync(
+        Crypto.CryptoDigestAlgorithm.SHA256,
+        password
+      );
       const user: any = await db.getFirstAsync(
         'SELECT * FROM Users WHERE email = ? AND password = ?;',
         [email, hashedPassword]
       );
       if (user) {
-        Alert.alert('Success', 'You have successfully signed in!');
+        // TODO: navigate to home screen
+        // router.replace('/(tabs)');
+        setSignInGeneralError('');
       } else {
-        Alert.alert('Error', 'Invalid email or password.');
+        setSignInGeneralError('Incorrect email or password');
       }
     } catch (error) {
-      Alert.alert('Error', 'An error occurred while signing in.');
+      setSignInGeneralError('Something went wrong. Please try again.');
     }
   };
 
   const handleSignUp = async () => {
-    if (!fname || !lname || !email || !password || !pnumber || !birthdate || !officialIdUri) {
-      Alert.alert('Error', 'Please fill out all fields.');
-      return;
-    }
+    if (!validateSignUp()) return;
     try {
       const id = Crypto.randomUUID();
-      const hashedPassword = await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, password);
-
+      const hashedPassword = await Crypto.digestStringAsync(
+        Crypto.CryptoDigestAlgorithm.SHA256,
+        suPassword
+      );
       await db.runAsync(
         `INSERT INTO Users 
           (id, Fname, Lname, email, password, Pnum, DOB, nat_id_pic_url) 
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?);`, 
-        [id, fname, lname, email, hashedPassword, pnumber, birthdate, officialIdUri]
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?);`,
+        [id, fname, lname, suEmail, hashedPassword, pnumber, birthdate, officialIdUri]
       );
-      Alert.alert('Success', 'Account created successfully!');
-    } catch (error) {
-      Alert.alert('Error', 'An error occurred while signing up.');
+      // TODO: navigate to home screen or show success state
+      // router.replace('/(tabs)');
+      setSignUpGeneralError('');
+    } catch (error: any) {
+      if (error?.message?.includes('UNIQUE')) {
+        setSignUpEmailError('An account with this email already exists');
+      } else {
+        setSignUpGeneralError('Something went wrong. Please try again.');
+      }
     }
   };
 
   const imagePicker = async () => {
     const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (permissionResult.granted === false) {
-      Alert.alert("Permission Denied", "You've refused to allow this app to access your photos!");
+    if (!permissionResult.granted) {
+      Alert.alert('Permission Denied', "Allow photo access to upload your ID.");
       return;
     }
-    
     const pickerResult = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true,
       quality: 1,
     });
-
-    if(!pickerResult.canceled){
-            setOfficialIdUri(pickerResult.assets[0].uri);
+    if (!pickerResult.canceled) {
+      setOfficialIdUri(pickerResult.assets[0].uri);
+      setOfficialIdError('');
     }
   };
 
@@ -116,229 +255,444 @@ export default function UserAuthScreen() {
   };
 
   const datePicker = (event: any, selectedDate?: Date) => {
-    if(event.type === 'dismissed') {
+    if (event.type === 'dismissed') {
       setShowPicker(false);
       return;
     }
     const currentDate = selectedDate || date;
     setDate(currentDate);
     setBirthdate(formatDate(currentDate));
+    setBirthdateError('');
   };
 
+  const ConPasswordHandler = (text: string) => {
+    setConfirmPasswordTouched(true);
+    setConfirmPassword(text);
+    if (!text) {
+      setConPasswordError('Please confirm your password');
+    } else if (text !== suPassword) {
+      setConPasswordError('Passwords do not match');
+    } else {
+      setConPasswordError('');
+    }
+  };
+
+  // ── Pill animation logic ──
   const animateTo = (layout: { x: number; width: number }) => {
     Animated.parallel([
-      Animated.timing(slideX, { toValue: layout.x, duration: 250, useNativeDriver: false }),
-      Animated.timing(slideWidth, { toValue: layout.width, duration: 250, useNativeDriver: false }),
+      Animated.timing(slideX, { toValue: layout.x, duration: 250, useNativeDriver: false, easing: Easing.out(Easing.ease) }),
+      Animated.timing(slideWidth, { toValue: layout.width, duration: 250, useNativeDriver: false, easing: Easing.out(Easing.ease) }),
     ]).start();
+  };
+
+  useEffect(() => {
+    const targetLayout = activeTab === 'signin' ? signInLayout : signUpLayout;
+    if (targetLayout.width === 0) return;
+    if (!hasInit.current) {
+      slideX.setValue(targetLayout.x);
+      slideWidth.setValue(targetLayout.width);
+      hasInit.current = true;
+    } else {
+      animateTo(targetLayout);
+    }
+  }, [activeTab, signInLayout, signUpLayout]);
+
+  const onSignInLayout = (e: LayoutChangeEvent) => {
+    const layout = { x: e.nativeEvent.layout.x, width: e.nativeEvent.layout.width };
+    setSignInLayout(layout);
+  };
+
+  const onSignUpLayout = (e: LayoutChangeEvent) => {
+    const layout = { x: e.nativeEvent.layout.x, width: e.nativeEvent.layout.width };
+    setSignUpLayout(layout);
   };
 
   const handleSwitch = (tab: 'signin' | 'signup') => {
     setActiveTab(tab);
+
+    // ── Reset Sign in form states ──
+    setEmail('');
+    setPassword('');
+    setChecked(false);
+    setSignInEmailError('');
+    setSignInPasswordError('');
+    setSignInGeneralError('');
+
+    // ── Reset Sign up form (normal) states ──
+    setFname('');
+    setLname('');
+    setSuEmail('');
+    setSuPassword('');
+    setConfirmPassword('');
+    setConfirmPasswordTouched(false);
+    setPnumber('');
+    setBirthdate('');
+    setDate(new Date());
+    setOfficialIdUri('');
+
+    // ── Reset Sign up form (error) states ──
+    setFnameError('');
+    setLnameError('');
+    setSignUpEmailError('');
+    setSignUpPasswordError('');
+    setConPasswordError('');
+    setPnumberError('');
+    setBirthdateError('');
+    setOfficialIdError('');
+    setSignUpGeneralError('');
+
+    // ── Animate Tab Transition ──
     Animated.timing(formAnim, {
       toValue: tab === 'signin' ? 0 : 1,
       duration: 250,
       useNativeDriver: false,
       easing: Easing.out(Easing.ease),
     }).start();
-    animateTo(tab === 'signin' ? signInLayout : signUpLayout);
-  };
-
-  const onSignInLayout = (e: LayoutChangeEvent) => {
-    const layout = { x: e.nativeEvent.layout.x, width: e.nativeEvent.layout.width };
-    setSignInLayout(layout);
-    if (activeTab === 'signin') {
-      slideX.setValue(layout.x);
-      slideWidth.setValue(layout.width);
-    }
-  };
-
-  const onSignUpLayout = (e: LayoutChangeEvent) => {
-    const layout = { x: e.nativeEvent.layout.x, width: e.nativeEvent.layout.width };
-    setSignUpLayout(layout);
-    if (activeTab === 'signup') {
-      slideX.setValue(layout.x);
-      slideWidth.setValue(layout.width);
-    }
   };
 
   return (
     <View style={{ flex: 1, backgroundColor: '#F5F3FB' }}>
-      <View style={StyleSheet.absoluteFillObject}>
-        {activeTab === 'signin' ? <SignInBox style={{ alignSelf: 'center' }} /> : <SignUpBox style={{ alignSelf: 'center' }} />}
-      </View>
-      <SafeAreaView style={[styles.titleContainer]}>
-        <Text style={styles.text}>{activeTab === 'signin' ? 'Sign In' : 'Sign Up'}</Text>
-        <Text style={{ color: '#F1BCDD', fontFamily: 'Jakarta-Bold', fontSize: 18, marginLeft: 30, marginTop: 10 }}>{activeTab === 'signin' ? 'Sign in and start moving \naround!' : 'Create a new account!'}</Text>
-        
-        {activeTab === 'signin' ? (
-          <View style={{ ...styles.outerPill, marginTop: 40 }}>
-            <Animated.View style={[styles.slidingPill, { left: slideX, width: slideWidth }]} />
-            <TouchableOpacity style={styles.tab} onLayout={onSignInLayout} onPress={() => handleSwitch('signin')}>
-              <Text style={[styles.tabText, isSignInActive ? styles.activeText : styles.inactiveText]}>Sign In</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.tab} onLayout={onSignUpLayout} onPress={() => handleSwitch('signup')}>
-              <Text style={[styles.tabText, isSignUpActive ? styles.activeText : styles.inactiveText]}>Sign Up</Text>
-            </TouchableOpacity>
-          </View>
-        ) : (
-          <View style={{ ...styles.outerPill, marginTop: 20 }}>
-            <Animated.View style={[styles.slidingPill, { left: slideX, width: slideWidth }]} />
-            <TouchableOpacity style={styles.tab} onLayout={onSignInLayout} onPress={() => handleSwitch('signin')}>
-              <Text style={[styles.tabText, isSignInActive ? styles.activeText : styles.inactiveText]}>Sign In</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.tab} onLayout={onSignUpLayout} onPress={() => handleSwitch('signup')}>
-              <Text style={[styles.tabText, isSignUpActive ? styles.activeText : styles.inactiveText]}>Sign Up</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-        
-        <View style={{ flex: 1 }}>
-          <Animated.View pointerEvents={activeTab === 'signin' ? 'auto' : 'none'} style={[styles.formLayer, { opacity: signInOpacity }]}>
-            <TextInput
-              placeholder="Email"
-              style={{ ...styles.input, marginTop: 80 }}
-              placeholderTextColor="#8A84CE"
-              value={email}
-              onChangeText={setEmail}
-              autoCapitalize="none"
-              autoCorrect={false}
-            />
-            <TextInput placeholder="Password" style={styles.input} secureTextEntry placeholderTextColor="#8A84CE" value={password} onChangeText={setPassword} autoCapitalize="none" autoCorrect={false} />
-
-            <View style={styles.checkboxContainer}>
-              <Checkbox style={styles.checkboxBox} value={isChecked} onValueChange={setChecked} color={isChecked ? '#5C5C6E' : '#5C5C6E'} />
-              <Text style={{ marginLeft: 8, fontFamily: 'Jakarta-bold', color: '#5C5C6E', fontSize: 16 }}>Remember me</Text>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 20 : 0}
+      >
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+          <View style={{ flex: 1 }}>
+            <View style={StyleSheet.absoluteFillObject}>
+              <SignInBox style={{ alignSelf: 'center' }} />
             </View>
 
-            <View>
-              <TouchableOpacity style={styles.ButtonBox} onPress={handleSignIn}>
-                <Text style={styles.buttonText}>Log in</Text>
-              </TouchableOpacity>
-            </View>
-          </Animated.View>
+            <SafeAreaView style={styles.titleContainer} edges={['top']}>
+              <View style={styles.headerContent}>
+                <Text style={styles.text}>{activeTab === 'signin' ? 'Sign In' : 'Sign Up'}</Text>
+                <Text style={styles.subtitle}>
+                  {activeTab === 'signin' ? 'Sign in and start moving \naround!' : 'Create a new account!'}
+                </Text>
 
-          <Animated.View pointerEvents={activeTab === 'signup' ? 'auto' : 'none'} style={[styles.formLayer, { opacity: signUpOpacity }]}>
-            <TextInput
-              placeholder="First Name"
-              style={{ ...styles.input, marginTop: 65 }}
-              placeholderTextColor="#8A84CE"
-              value={fname}
-              onChangeText={setFname}
-              autoCorrect={false}
-            />
-
-            <TextInput
-              placeholder="Last Name"
-              style={styles.input}
-              placeholderTextColor="#8A84CE"
-              value={lname}
-              onChangeText={setLname}
-              autoCorrect={false}
-            />
-
-            <TextInput
-              placeholder="Email"
-              style={styles.input}
-              placeholderTextColor="#8A84CE"
-              value={email}
-              onChangeText={setEmail}
-              autoCapitalize="none"
-              autoCorrect={false}
-            />
-
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', width: '80%', alignSelf: 'center', marginRight: 80 }}>
-              <TouchableOpacity onPress={() => setShowPicker(true)} style={{ width: '50%', marginRight: 2 }}>
-                <View style={[styles.pickers, { justifyContent: 'space-between' }, { width: '97%' }, { flexDirection: 'row' }, { borderColor: '#CECCD6' }, { borderWidth: 1 }]}>
-                  <Text
-                    style={{
-                      color: birthdate ? '#372F42' : '#8A84CE',
-                      fontFamily: birthdate ? 'Jakarta-Bold' : 'Jakarta-Bold',
-                      fontSize: 16,
-                      alignSelf: 'center',
-                    }}
-                  >
-                    {birthdate ? birthdate : 'Birth Date'}
-                  </Text>
-                  <Ionicons name="calendar" size={20} color={birthdate ? '#8A84CE' : '#8A84CE'} style={{ marginLeft: 10, alignSelf: 'center' }} />
+                <View style={{ ...styles.outerPill, marginTop: activeTab === 'signin' ? 22 : 45 }}>
+                  <Animated.View style={[styles.slidingPill, { left: slideX, width: slideWidth }]} />
+                  <TouchableOpacity style={styles.tab} onLayout={onSignInLayout} onPress={() => handleSwitch('signin')}>
+                    <Text style={[styles.tabText, isSignInActive ? styles.activeText : styles.inactiveText]}>Sign In</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.tab} onLayout={onSignUpLayout} onPress={() => handleSwitch('signup')}>
+                    <Text style={[styles.tabText, isSignUpActive ? styles.activeText : styles.inactiveText]}>Sign Up</Text>
+                  </TouchableOpacity>
                 </View>
+              </View>
 
-                {showPicker &&
-                  (Platform.OS === 'ios' ? (
-                    <Modal transparent animationType="fade">
-                      <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setShowPicker(false)}>
-                        <View style={styles.pickerBox}>
-                          <DateTimePicker
-                            value={date}
-                            mode="date"
-                            display="inline"
-                            onChange={datePicker}
-                            maximumDate={new Date()}
-                            textColor="#8A84CE"
-                          />
-                          <TouchableOpacity
-                            style={styles.doneButton}
-                            onPress={() => {
-                              setBirthdate(date.toLocaleDateString());
-                              setShowPicker(false);
-                            }}
-                          >
-                            <Text style={{ color: '#FFF', fontFamily: 'Jakarta-Bold', fontSize: 16 }}>Done</Text>
-                          </TouchableOpacity>
+              <View pointerEvents="none" style={styles.svgShapeOverlay}>
+                <SignInBox style={{ alignSelf: 'center' }} />
+              </View>
+
+              <View style={{ flex: 1 }}>
+
+                {/* ── SIGN UP FORM ── */}
+                <Animated.ScrollView
+                  pointerEvents={activeTab === 'signup' ? 'auto' : 'none'}
+                  style={[styles.signUpScrollLayer, { opacity: signUpOpacity }]}
+                  contentContainerStyle={[styles.signUpScrollContent, {paddingTop: 50}]}
+                  showsVerticalScrollIndicator={false}
+                  keyboardShouldPersistTaps="handled"
+                  bounces
+                  alwaysBounceVertical
+                >
+                  <View>
+                    {/* General error */}
+                    <Text style={styles.fieldErrorSlot}>{signUpGeneralError || ' '}</Text>
+
+                    {/* First Name */}
+                    <View style={styles.fieldContainer}>
+                      <Text style={styles.fieldErrorSlot}>{fnameError || ' '}</Text>
+                      <TextInput
+                        placeholder="First Name"
+                        style={[styles.input, styles.noTopMargin]}
+                        placeholderTextColor="#8A84CE"
+                        value={fname}
+                        onChangeText={(text) => { setFname(text); if (fnameError) setFnameError(''); }}
+                        autoCorrect={false}
+                        returnKeyType="next"
+                        onSubmitEditing={() => LnameInputRef.current?.focus()}
+                      />
+                    </View>
+
+                    {/* Last Name */}
+                    <View style={styles.fieldContainer}>
+                      {lnameError ? (
+                          <Text style={[styles.fieldErrorSlot, { marginTop: 10 }]}>{lnameError}</Text>
+                        ) : null}
+                      <TextInput
+                        placeholder="Last Name"
+                        style={[styles.input, styles.noTopMargin]}
+                        placeholderTextColor="#8A84CE"
+                        value={lname}
+                        onChangeText={(text) => { setLname(text); if (lnameError) setLnameError(''); }}
+                        autoCorrect={false}
+                        ref={LnameInputRef}
+                        returnKeyType="next"
+                        onSubmitEditing={() => SuEmailInputRef.current?.focus()}
+                      />
+                    </View>
+
+                    {/* Email */}
+                    <View style={styles.fieldContainer}>
+                      {signUpEmailError ? (
+                        <Text style={[styles.fieldErrorSlot, { marginTop: 10 }]}>{signUpEmailError}</Text>
+                      ) : null}
+                      <TextInput
+                        placeholder="Email"
+                        style={[styles.input, styles.noTopMargin]}
+                        placeholderTextColor="#8A84CE"
+                        value={suEmail}
+                        onChangeText={(text) => { setSuEmail(text); if (signUpEmailError) setSignUpEmailError(''); }}
+                        autoCapitalize="none"
+                        autoCorrect={false}
+                        ref={SuEmailInputRef}
+                        returnKeyType="next"
+                        onSubmitEditing={() => PnumInputRef.current?.focus()}
+                      />
+                    </View>
+
+                    {/* Birth Date + National ID row */}
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', width: '80%', alignSelf: 'center', marginTop: 12, alignItems: 'flex-end' }}>
+  
+                    {/* Birth Date Column */}
+                    <View style={{ width: '48%' }}>
+                      {birthdateError ? (
+                        <Text style={[styles.fieldErrorSlot, { width: '100%', marginLeft: 0, minHeight: 0, marginBottom: 4 }]}>
+                          {birthdateError}
+                        </Text>
+                      ) : null}
+                      <TouchableOpacity onPress={() => setShowPicker(true)}>
+                        <View style={[styles.pickers, { justifyContent: 'space-between', width: '100%', flexDirection: 'row', borderColor: birthdateError ? '#D64545' : '#CECCD6', borderWidth: 1 }]}>
+                          <Text style={{ color: '#8A84CE', fontFamily: 'Jakarta-Bold', fontSize: 16, alignSelf: 'center' }}>
+                            {birthdate ? birthdate : 'Birth Date'}
+                          </Text>
+                          <Ionicons name="calendar" size={20} color="#8A84CE" style={{ alignSelf: 'center' }} />
                         </View>
                       </TouchableOpacity>
-                    </Modal>
-                  ) : (
-                    <DateTimePicker value={date} mode="date" display="default" onChange={datePicker} maximumDate={new Date()} />
-                  ))}
-              </TouchableOpacity>
 
-              <TouchableOpacity onPress={imagePicker} style={{ width: '50%', marginLeft: 5 }}>
-                <View style={[styles.pickers, { justifyContent: 'space-between' }, { width: '97%' }, { flexDirection: 'row' }, { borderColor: '#CECCD6' }, { borderWidth: 1 }]}>
-                  <Text
-                    style={{
-                      color: officialIdUri ? '#372F42' : '#8A84CE',
-                      fontFamily: officialIdUri ? 'Jakarta-Bold' : 'Jakarta-Bold',
-                      fontSize: 16,
-                      alignSelf: 'center',
-                    }}
-                  >
-                    {officialIdUri ? 'ID Uploaded' : 'National ID'}
-                  </Text>
-                  <Ionicons name="image" size={20} color={officialIdUri ? '#8A84CE' : '#8A84CE'} style={{ marginLeft: 10, alignSelf: 'center' }} />
-                </View>
-              </TouchableOpacity>
-            </View>
+                      {showPicker && (Platform.OS === 'ios' ? (
+                        <Modal transparent animationType="fade">
+                          <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setShowPicker(false)}>
+                            <View style={styles.pickerBox}>
+                              <DateTimePicker
+                                value={date}
+                                mode="date"
+                                display="spinner"
+                                onChange={datePicker}
+                                maximumDate={new Date()}
+                                themeVariant="light"
+                                textColor="#8A84CE"
+                              />
+                              <TouchableOpacity
+                                style={styles.doneButton}
+                                onPress={() => { setBirthdate(formatDate(date)); setShowPicker(false); setBirthdateError(''); }}
+                              >
+                                <Text style={{ color: '#FFF', fontFamily: 'Jakarta-Bold', fontSize: 16 }}>Done</Text>
+                              </TouchableOpacity>
+                            </View>
+                          </TouchableOpacity>
+                        </Modal>
+                      ) : (
+                        <DateTimePicker value={date} mode="date" display="default" onChange={datePicker} maximumDate={new Date()} />
+                      ))}
+                    </View>
 
-            <TextInput
-              placeholder="Phone Number"
-              style={styles.input}
-              placeholderTextColor="#8A84CE"
-              value={pnumber}
-              onChangeText={setPnumber}
-              keyboardType="phone-pad"
-              autoCorrect={false}
-            />
-            <TextInput
-              placeholder="Password"
-              style={styles.input}
-              placeholderTextColor="#8A84CE"
-              value={password}
-              onChangeText={setPassword}
-              secureTextEntry
-              autoCorrect={false}
-            />
-            <TouchableOpacity style={styles.ButtonBox} onPress={handleSignUp}>
-              <Text style={styles.buttonText}>Sign Up</Text>
-            </TouchableOpacity>
-            <View style={{ flexDirection: 'row', alignSelf: 'center' }}>
-              <Text style={{ color: '#372F42', fontFamily: 'Jakarta-Bold', fontSize: 13, alignSelf: 'center', marginTop: 15 }}>Already have an account?</Text>
-              <TouchableOpacity style={{ alignSelf: 'center', marginTop: 15, marginLeft: 3, borderBottomWidth: 2, borderBottomColor: '#3E63D8' }} onPress={() => router.back()}>
-                <Text style={{ color: '#3E63D8', fontFamily: 'Jakarta-Bold', fontSize: 13 }}>Log in</Text>
-              </TouchableOpacity>
-            </View>
-          </Animated.View>
-        </View>
-      </SafeAreaView>
+                    {/* National ID Column */}
+                    <View style={{ width: '48%' }}>
+                      {officialIdError ? (
+                        <Text style={[styles.fieldErrorSlot, { width: '100%', marginLeft: 0, minHeight: 0, marginBottom: 4 }]}>
+                          {officialIdError}
+                        </Text>
+                      ) : null}
+                      <TouchableOpacity onPress={imagePicker}>
+                        <View style={[styles.pickers, { justifyContent: 'space-between', width: '100%', flexDirection: 'row', borderColor: officialIdError ? '#D64545' : '#CECCD6', borderWidth: 1 }]}>
+                          <Text style={{ color: '#8A84CE', fontFamily: 'Jakarta-Bold', fontSize: 16, alignSelf: 'center' }}>
+                            {officialIdUri ? 'ID Uploaded ✓' : 'National ID'}
+                          </Text>
+                          <Ionicons name={officialIdUri ? 'checkmark-circle' : 'image'} size={20} color={officialIdUri ? '#B85A9A' : '#8A84CE'} style={{ alignSelf: 'center' }} />
+                        </View>
+                      </TouchableOpacity>
+                    </View>
+
+                  </View>
+
+                    {/* Phone Number */}
+                    <View style={styles.fieldContainer}>
+                      {pnumberError ? (
+                        <Text style={[styles.fieldErrorSlot, { marginTop: 10 }]}>{pnumberError}</Text>
+                      ) : null}
+                      <TextInput
+                        placeholder="Phone Number"
+                        style={[styles.input, styles.noTopMargin]}
+                        placeholderTextColor="#8A84CE"
+                        value={pnumber}
+                        onChangeText={(text) => { setPnumber(text); if (pnumberError) setPnumberError(''); }}
+                        keyboardType="phone-pad"
+                        autoCorrect={false}
+                        ref={PnumInputRef}
+                        returnKeyType="next"
+                        onSubmitEditing={() => SuPasswordInputRef.current?.focus()}
+                      />
+                    </View>
+
+                    {/* Password */}
+                    <View style={styles.fieldContainer}>
+                      {signUpPasswordError ? (
+                        <Text style={[styles.fieldErrorSlot, { marginTop: 10 }]}>{signUpPasswordError}</Text>
+                      ) : null}
+                      <View style={[styles.passwordFieldContainer, styles.noTopMargin]}>
+                        <TextInput
+                          placeholder="Password"
+                          style={[styles.input, styles.passwordInput, styles.noTopMargin]}
+                          placeholderTextColor="#8A84CE"
+                          value={suPassword}
+                          onChangeText={(text) => {
+                            setSuPassword(text);
+                            if (signUpPasswordError) setSignUpPasswordError('');
+                            if (confirmPasswordTouched && confirmPassword) {
+                              setConPasswordError(confirmPassword === text ? '' : 'Passwords do not match');
+                            }
+                          }}
+                          secureTextEntry={!isSignUpPasswordVisible}
+                          autoCorrect={false}
+                          ref={SuPasswordInputRef}
+                          returnKeyType="next"
+                          onSubmitEditing={() => ConfirmPasswordInputRef.current?.focus()}
+                        />
+                        <TouchableOpacity style={styles.passwordToggle} onPress={() => setIsSignUpPasswordVisible(!isSignUpPasswordVisible)} hitSlop={10}>
+                          <Ionicons name={isSignUpPasswordVisible ? 'eye-off' : 'eye'} size={24} color="#8A84CE" />
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+
+                    {/* Confirm Password */}
+                    <View style={styles.fieldContainer}>
+                      {confirmPasswordTouched && conPasswordError ? (
+                        <Text style={[styles.fieldErrorSlot, { marginTop: 10 }]}>{conPasswordError}</Text>
+                      ) : null}
+                      <View style={[styles.passwordFieldContainer, styles.noTopMargin]}>
+                        <TextInput
+                          placeholder="Confirm Password"
+                          style={[styles.input, styles.passwordInput, styles.noTopMargin]}
+                          placeholderTextColor="#8A84CE"
+                          value={confirmPassword}
+                          onChangeText={ConPasswordHandler}
+                          secureTextEntry={!isConfirmPasswordVisible}
+                          autoCorrect={false}
+                          ref={ConfirmPasswordInputRef}
+                          returnKeyType="done"
+                          onSubmitEditing={handleSignUp}
+                        />
+                        <TouchableOpacity style={styles.passwordToggle} onPress={() => setIsConfirmPasswordVisible(!isConfirmPasswordVisible)} hitSlop={10}>
+                          <Ionicons name={isConfirmPasswordVisible ? 'eye-off' : 'eye'} size={24} color="#8A84CE" />
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+
+                    <TouchableOpacity style={styles.ButtonBox} onPress={handleSignUp}>
+                      <Text style={styles.buttonText}>Sign Up</Text>
+                    </TouchableOpacity>
+
+                    <View style={{ flexDirection: 'row', alignSelf: 'center' }}>
+                      <View style={styles.horizontalLineLeft} />
+                      <Text style={styles.orText}>OR</Text>
+                      <View style={styles.horizontalLineRight} />
+                    </View>
+
+                    <TouchableOpacity style={styles.AppleSignInButton} onPress={() => Alert.alert('Apple Sign In', 'This feature is not implemented yet.')}>
+                      <AntDesign name="apple" size={30} color="#ffffff" />
+                      <Text style={styles.ApButtonText}>Continue with Apple</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity style={styles.GoogleSignInButton} onPress={() => Alert.alert('Google Sign In', 'This feature is not implemented yet.')}>
+                      <Google width={30} height={30} />
+                      <Text style={styles.GoButtonText}>Continue with Google</Text>
+                    </TouchableOpacity>
+                  </View>
+                </Animated.ScrollView>
+
+                {/* ── SIGN IN FORM ── */}
+                <Animated.View
+                  pointerEvents={activeTab === 'signin' ? 'auto' : 'none'}
+                  style={[styles.formLayer, { opacity: signInOpacity, paddingTop: 42 }]}
+                >
+                  {/* General error */}
+                  <Text style={[styles.fieldErrorSlot, { textAlign: 'center', marginTop: 8 }]}>{signInGeneralError || ' '}</Text>
+
+                  {/* Email */}
+                  <View style={styles.fieldContainer}>
+                    <Text style={styles.fieldErrorSlot}>{signInEmailError || ' '}</Text>
+                    <TextInput
+                      placeholder="Email"
+                      style={[styles.input, styles.noTopMargin]}
+                      placeholderTextColor="#8A84CE"
+                      value={email}
+                      onChangeText={(text) => { setEmail(text); if (signInEmailError) setSignInEmailError(''); if (signInGeneralError) setSignInGeneralError(''); }}
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                      ref={EmailInputRef}
+                      returnKeyType="next"
+                      onSubmitEditing={() => PasswordInputRef.current?.focus()}
+                    />
+                  </View>
+
+                  {/* Password */}
+                  <View style={styles.fieldContainer}>
+                    {signInPasswordError ? (
+                      <Text style={[styles.fieldErrorSlot, { marginTop: 10 }]}>{signInPasswordError}</Text>
+                    ) : null}
+                    <View style={[styles.passwordFieldContainer, styles.noTopMargin]}>
+                      <TextInput
+                        placeholder="Password"
+                        style={[styles.input, styles.passwordInput, styles.noTopMargin]}
+                        placeholderTextColor="#8A84CE"
+                        value={password}
+                        onChangeText={(text) => { setPassword(text); if (signInPasswordError) setSignInPasswordError(''); if (signInGeneralError) setSignInGeneralError(''); }}
+                        secureTextEntry={!isSignInPasswordVisible}
+                        autoCorrect={false}
+                        ref={PasswordInputRef}
+                        returnKeyType="done"
+                        onSubmitEditing={handleSignIn}
+                      />
+                      <TouchableOpacity style={styles.passwordToggle} onPress={() => setIsSignInPasswordVisible(!isSignInPasswordVisible)} hitSlop={10}>
+                        <Ionicons name={isSignInPasswordVisible ? 'eye-off' : 'eye'} size={24} color="#8A84CE" />
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+
+                  <View style={styles.checkboxContainer}>
+                    <Checkbox style={styles.checkboxBox} value={isChecked} onValueChange={setChecked} color="#5C5C6E" />
+                    <Text style={{ marginLeft: 8, fontFamily: 'Jakarta-Bold', color: '#5C5C6E', fontSize: 16 }}>Remember me</Text>
+                  </View>
+
+                  <TouchableOpacity style={styles.ButtonBox} onPress={handleSignIn}>
+                    <Text style={styles.buttonText}>Log in</Text>
+                  </TouchableOpacity>
+
+                  <View style={{ flexDirection: 'row', alignSelf: 'center' }}>
+                    <View style={styles.horizontalLineLeft} />
+                    <Text style={styles.orText}>OR</Text>
+                    <View style={styles.horizontalLineRight} />
+                  </View>
+
+                  <TouchableOpacity style={styles.AppleSignInButton} onPress={() => Alert.alert('Apple Sign In', 'This feature is not implemented yet.')}>
+                    <AntDesign name="apple" size={30} color="#ffffff" />
+                    <Text style={styles.ApButtonText}>Continue with Apple</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity style={styles.GoogleSignInButton} onPress={() => Alert.alert('Google Sign In', 'This feature is not implemented yet.')}>
+                    <Google width={30} height={30} />
+                    <Text style={styles.GoButtonText}>Continue with Google</Text>
+                  </TouchableOpacity>
+                </Animated.View>
+
+              </View>
+            </SafeAreaView>
+          </View>
+        </TouchableWithoutFeedback>
+      </KeyboardAvoidingView>
     </View>
   );
 }
@@ -352,7 +706,27 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     marginLeft: 30,
     marginTop: 15,
-    fontFamily: 'Jakarta-Bold'
+    fontFamily: 'Jakarta-Bold',
+  },
+  subtitle: {
+    color: '#F1BCDD',
+    fontFamily: 'Jakarta-Bold',
+    fontSize: 18,
+    marginLeft: 30,
+    marginTop: 10,
+  },
+  fieldContainer: {
+    width: '100%',
+    marginTop: 12,
+  },
+  fieldErrorSlot: {
+    width: '80%',
+    alignSelf: 'center',
+    minHeight: 18,
+    marginBottom: 3,
+    color: '#D64545',
+    fontFamily: 'Jakarta-Bold',
+    fontSize: 12,
   },
   input: {
     backgroundColor: '#FFFFFF',
@@ -366,10 +740,28 @@ const styles = StyleSheet.create({
     fontFamily: 'Jakarta-Bold',
     color: '#372F42',
     borderWidth: 1,
-    borderColor: '#CECCD6'
+    borderColor: '#CECCD6',
   },
-  gap: {
-    marginBottom: 30,
+  noTopMargin: {
+    marginTop: 0,
+  },
+  passwordFieldContainer: {
+    width: '80%',
+    alignSelf: 'center',
+    marginTop: 15,
+    position: 'relative',
+  },
+  passwordInput: {
+    width: '100%',
+    marginTop: 0,
+    paddingRight: 48,
+  },
+  passwordToggle: {
+    position: 'absolute',
+    right: 14,
+    top: '50%',
+    transform: [{ translateY: -12 }],
+    zIndex: 1,
   },
   checkboxContainer: {
     flexDirection: 'row',
@@ -386,39 +778,33 @@ const styles = StyleSheet.create({
     height: 65,
     borderRadius: 25,
     alignSelf: 'center',
-    marginTop: 30,
+    marginTop: 24,
     justifyContent: 'center',
     alignItems: 'center',
   },
   buttonText: {
     color: '#ffffff',
     fontSize: 32,
-    fontFamily: 'Jakarta-ExtraBold'
+    fontFamily: 'Jakarta-ExtraBold',
   },
   pickers: {
     backgroundColor: '#FFFFFF',
-    alignSelf: 'flex-start',
-    width: '40%',
     height: 50,
     borderRadius: 15,
     paddingHorizontal: 15,
-    marginLeft: 40,
-    marginTop: 15,
-    fontSize: 16,
-    fontFamily: 'Jakarta-Bold',
   },
   modalOverlay: {
-      flex: 1,
-      backgroundColor: 'rgba(0, 0, 0, 0.5)',
-      justifyContent: 'center',
-      alignItems: 'center',
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   pickerBox: {
-      backgroundColor: '#fff',
-      borderRadius: 55,
-      padding: 20,
-      alignItems: 'center',
-      width: '90%',
+    backgroundColor: '#fff',
+    borderRadius: 55,
+    padding: 20,
+    alignItems: 'center',
+    width: '90%',
   },
   doneButton: {
     backgroundColor: '#B85A9A',
@@ -460,10 +846,109 @@ const styles = StyleSheet.create({
   inactiveText: {
     color: '#A8519E',
   },
+  orText: {
+    color: '#5C5C6E',
+    fontFamily: 'Jakarta-Bold',
+    fontSize: 14,
+    alignSelf: 'center',
+    marginHorizontal: 10,
+  },
+  horizontalLineLeft: {
+    height: 1,
+    backgroundColor: '#5C5C6E',
+    marginVertical: 30,
+    width: '38%',
+    borderRadius: 10,
+    borderColor: '#5C5C6E',
+    borderWidth: 1,
+    marginLeft: 25,
+  },
+  horizontalLineRight: {
+    height: 1,
+    backgroundColor: '#5C5C6E',
+    marginVertical: 30,
+    width: '38%',
+    alignSelf: 'flex-end',
+    borderRadius: 10,
+    borderColor: '#5C5C6E',
+    borderWidth: 1,
+    marginRight: 25,
+  },
+  AppleSignInButton: {
+    backgroundColor: '#000000',
+    width: '75%',
+    height: 60,
+    borderRadius: 20,
+    alignSelf: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#000000',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  ApButtonText: {
+    color: '#ffffff',
+    fontSize: 20,
+    fontFamily: 'Jakarta-ExtraBold',
+    marginLeft: 10,
+  },
+  GoogleSignInButton: {
+    backgroundColor: '#ffffff',
+    width: '75%',
+    height: 60,
+    borderRadius: 20,
+    alignSelf: 'center',
+    marginTop: 15,
+    justifyContent: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#ffffff',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+    marginBottom: 30,
+  },
+  GoButtonText: {
+    color: '#5C5C6E',
+    fontSize: 20,
+    fontFamily: 'Jakarta-ExtraBold',
+    marginLeft: 10,
+  },
+  signUpScrollLayer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 1,
+  },
+  signUpScrollContent: {
+    paddingBottom: 42,
+  },
   formLayer: {
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
+    zIndex: 3,
+  },
+  svgShapeOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 2,
+  },
+  headerContent: {
+    zIndex: 4,
+    elevation: 4,
+  },
+  gap: {
+    marginBottom: 30,
   },
 });
