@@ -3,6 +3,7 @@ import AntDesign from '@expo/vector-icons/AntDesign';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import Checkbox from 'expo-checkbox';
 import * as Crypto from 'expo-crypto';
+import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
@@ -99,6 +100,13 @@ export default function UserAuthScreen() {
     setSignInPasswordError('');
     setSignInGeneralError('');
 
+    const allEmpty = !email.trim() && !password;
+
+    if(allEmpty) {
+      setSignInGeneralError('Please fill in all required fields');
+      return false;
+    }
+
     if (!email.trim()) {
       setSignInEmailError('Email is required');
       isValid = false;
@@ -129,6 +137,21 @@ export default function UserAuthScreen() {
     setBirthdateError('');
     setOfficialIdError('');
     setSignUpGeneralError('');
+
+    const allEmpty = 
+      !fname.trim() &&
+      !lname.trim() &&
+      !suEmail.trim() &&
+      !pnumber.trim() &&
+      !birthdate &&
+      !officialIdUri &&
+      !suPassword &&
+      !confirmPassword;
+
+    if(allEmpty) {
+      setSignUpGeneralError('Please fill in all required fields');
+      return false;
+    }
 
     if (!fname.trim()) {
       setFnameError('First name is required');
@@ -163,6 +186,9 @@ export default function UserAuthScreen() {
     if (!suPassword) {
       setSignUpPasswordError('Password is required');
       isValid = false;
+    } else if (suPassword.includes(' ')) {
+      setSignUpPasswordError('Password cannot contain spaces');
+      isValid = false;
     } else if (suPassword.length < MIN_PASSWORD_LENGTH) {
       setSignUpPasswordError(`Must be at least ${MIN_PASSWORD_LENGTH} characters`);
       isValid = false;
@@ -180,8 +206,60 @@ export default function UserAuthScreen() {
     return isValid;
   };
 
+  const passwordStrengthCheck = (pass: string): { score: number; label: string; color: string; hint: string } => {
+    if(!pass) return { score: 0, label: '', color: 'transparent', hint: '' };
+    if(pass.includes(' ') || pass.length < MIN_PASSWORD_LENGTH){
+      return { score: 1, label: 'Weak', color: '#D64545', hint: 'Use at least 8 characters with no spaces' };
+    } 
+
+    const hasUpper = /[A-Z]/.test(pass);
+    const hasSpecial = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(pass);
+
+    if(hasUpper && hasSpecial) {
+      return {score: 4, label: 'Strong', color: '#10B981', hint: ''};
+    }
+    if(hasUpper || hasSpecial) {
+      return {score: 3, label: 'Good', color: '#3B82F6', hint: hasUpper ? 'Add a special character for stronger password' : 'Add an uppercase letter for stronger password'};
+    }
+    return {score: 2, label: 'Fair', color: '#F59E0B', hint: 'Add uppercase letters or special characters to strengthen it'};
+  };
+
+  const StrengthBar = ({ password }: { password: string }) => {
+    const { score, label, color, hint } = passwordStrengthCheck(password);
+    if (!password) return null;
+
+    return (
+      <View style={{ width: '80%', alignSelf: 'center', marginTop: 6 }}>
+        <View style={{ flexDirection: 'row', gap: 4 }}>
+          {[1, 2, 3, 4].map((i) => (
+            <View
+              key={i}
+              style={{
+                flex: 1,
+                height: 4,
+                borderRadius: 2,
+                backgroundColor: i <= score ? color : '#E5E7EB',
+              }}
+            />
+          ))}
+        </View>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 }}>
+          <Text style={{ color, fontFamily: 'Jakarta-Bold', fontSize: 12 }}>
+            {label}
+          </Text>
+          {hint ? (
+            <Text style={{ color: '#9CA3AF', fontFamily: 'Jakarta-Bold', fontSize: 11, flex: 1, textAlign: 'right' }}>
+              {hint}
+            </Text>
+          ) : null}
+        </View>
+      </View>
+    );
+  };
+
   // ── Handlers ──
   const handleSignIn = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     if (!validateSignIn()) return;
     try {
       const hashedPassword = await Crypto.digestStringAsync(
@@ -205,6 +283,7 @@ export default function UserAuthScreen() {
   };
 
   const handleSignUp = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     if (!validateSignUp()) return;
     try {
       const id = Crypto.randomUUID();
@@ -308,10 +387,10 @@ export default function UserAuthScreen() {
   };
 
   const handleSwitch = (tab: 'signin' | 'signup') => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setActiveTab(tab);
 
     // ── Reset Sign in form states ──
-    setEmail('');
     setPassword('');
     setChecked(false);
     setSignInEmailError('');
@@ -319,9 +398,6 @@ export default function UserAuthScreen() {
     setSignInGeneralError('');
 
     // ── Reset Sign up form (normal) states ──
-    setFname('');
-    setLname('');
-    setSuEmail('');
     setSuPassword('');
     setConfirmPassword('');
     setConfirmPasswordTouched(false);
@@ -391,19 +467,19 @@ export default function UserAuthScreen() {
                 <Animated.ScrollView
                   pointerEvents={activeTab === 'signup' ? 'auto' : 'none'}
                   style={[styles.signUpScrollLayer, { opacity: signUpOpacity }]}
-                  contentContainerStyle={[styles.signUpScrollContent, {paddingTop: 50}]}
+                  contentContainerStyle={[styles.signUpScrollContent, {paddingTop: 65}]}
                   showsVerticalScrollIndicator={false}
                   keyboardShouldPersistTaps="handled"
                   bounces
                   alwaysBounceVertical
                 >
                   <View>
-                    {/* General error */}
-                    <Text style={styles.fieldErrorSlot}>{signUpGeneralError || ' '}</Text>
 
                     {/* First Name */}
                     <View style={styles.fieldContainer}>
-                      <Text style={styles.fieldErrorSlot}>{fnameError || ' '}</Text>
+
+                        {/* General error */}
+                      <Text style={styles.fieldErrorSlot}>{signUpGeneralError || fnameError || ' '}</Text>
                       <TextInput
                         placeholder="First Name"
                         style={[styles.input, styles.noTopMargin]}
@@ -566,7 +642,8 @@ export default function UserAuthScreen() {
                         </TouchableOpacity>
                       </View>
                     </View>
-
+                    {/* Password Strength Bar */}
+                    <StrengthBar password={suPassword} />
                     {/* Confirm Password */}
                     <View style={styles.fieldContainer}>
                       {confirmPasswordTouched && conPasswordError ? (
@@ -616,14 +693,13 @@ export default function UserAuthScreen() {
                 {/* ── SIGN IN FORM ── */}
                 <Animated.View
                   pointerEvents={activeTab === 'signin' ? 'auto' : 'none'}
-                  style={[styles.formLayer, { opacity: signInOpacity, paddingTop: 42 }]}
+                  style={[styles.formLayer, { opacity: signInOpacity, paddingTop: 65 }]}
                 >
-                  {/* General error */}
-                  <Text style={[styles.fieldErrorSlot, { textAlign: 'center', marginTop: 8 }]}>{signInGeneralError || ' '}</Text>
-
                   {/* Email */}
                   <View style={styles.fieldContainer}>
-                    <Text style={styles.fieldErrorSlot}>{signInEmailError || ' '}</Text>
+
+                    {/* General error */}
+                    <Text style={styles.fieldErrorSlot}>{signInGeneralError || signInEmailError || ' '}</Text>
                     <TextInput
                       placeholder="Email"
                       style={[styles.input, styles.noTopMargin]}
