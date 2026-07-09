@@ -12,7 +12,7 @@ import { useRouter } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
 import React, { useEffect, useRef, useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
-import { Alert, Animated, Easing, Keyboard, KeyboardAvoidingView, LayoutChangeEvent, Modal, Platform, StyleSheet, Text, TextInput, TouchableOpacity, TouchableWithoutFeedback, View } from 'react-native';
+import { Alert, Animated, Easing, Keyboard, KeyboardAvoidingView, LayoutChangeEvent, Modal, Platform, StyleSheet, Text, TextInput, TouchableOpacity, TouchableWithoutFeedback, useWindowDimensions, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { z } from 'zod';
 import Google from '../assets/images/Google.svg';
@@ -123,6 +123,8 @@ const StrengthBar = ({ password }: { password: string }) => {
 
 export default function UserAuthScreen() {
   const [activeTab, setActiveTab] = useState<'signin' | 'signup'>('signin');
+  const { width: screenWidth } = useWindowDimensions();
+  const signInBoxHeight = screenWidth * (377 / 402);
 
   // ── Sign In fields ──
   const {
@@ -441,10 +443,15 @@ export default function UserAuthScreen() {
       >
         <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
           <View style={{ flex: 1 }}>
-            <View style={StyleSheet.absoluteFillObject}>
-              <SignInBox style={{ alignSelf: 'center' }} />
-            </View>
-
+            {Platform.OS === 'ios'? (
+              <View style={StyleSheet.absoluteFillObject}>
+                <SignInBox style={{ alignSelf: 'center' }} />
+              </View>
+            ) : (
+              <View style={{...StyleSheet.absoluteFillObject}}>
+                <SignInBox width={screenWidth} height={signInBoxHeight} preserveAspectRatio="none" />
+              </View>
+            )}
             <SafeAreaView style={styles.titleContainer} edges={['top']}>
               <View style={styles.headerContent}>
                 <Text style={styles.text}>{activeTab === 'signin' ? 'Sign In' : 'Sign Up'}</Text>
@@ -464,7 +471,11 @@ export default function UserAuthScreen() {
               </View>
 
               <View pointerEvents="none" style={styles.svgShapeOverlay}>
-                <SignInBox style={{ alignSelf: 'center' }} />
+                {Platform.OS === 'ios' ? (
+                  <SignInBox style={{ alignSelf: 'center' }} />
+                ) : (
+                  <SignInBox width={screenWidth} height={signInBoxHeight} preserveAspectRatio="none" />
+                )}
               </View>
 
               <View style={{ flex: 1 }}>
