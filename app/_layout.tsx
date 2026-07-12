@@ -5,20 +5,19 @@ import {
   useFonts
 } from '@expo-google-fonts/plus-jakarta-sans';
 import { ActionSheetProvider } from '@expo/react-native-action-sheet';
-import { SplashScreen, Stack, useRouter } from 'expo-router';
+import { SplashScreen, Stack } from 'expo-router';
 import { SQLiteProvider } from 'expo-sqlite';
 import { useEffect } from 'react';
 import 'react-native-reanimated';
-import { init_User_Tables } from './db/user_data';
-import { getSession } from './utils/session';
+import { init_User_Tables } from '../db/user_data';
+SplashScreen.preventAutoHideAsync();
 
 
 async function migrateDbIfNeeded(db: any) {
-  await init_User_Tables();
+  await init_User_Tables(db);
 }
 
 export default function RootLayout() {
-  const router = useRouter();
   const [loaded, error] = useFonts({
     'Jakarta-Regular': PlusJakartaSans_400Regular,
     'Jakarta-Bold': PlusJakartaSans_700Bold,
@@ -26,16 +25,8 @@ export default function RootLayout() {
   });
 
   useEffect(() => {
-    if (!loaded || !error) return;
+    if (!loaded && !error) return;
     SplashScreen.hideAsync();
-
-    const checkSession = async () => {
-      const session = await getSession();
-      if (session) {
-        router.replace('/(tabs)/explore');
-      }
-    };
-    checkSession();
   }, [loaded, error]);
 
   if (!loaded && !error) {
@@ -45,9 +36,10 @@ export default function RootLayout() {
   return (
     <ActionSheetProvider>
       <SQLiteProvider databaseName="Wasalha.db" onInit={migrateDbIfNeeded}>
-        <Stack screenOptions={{ headerShown: false }}>
-          <Stack.Screen name="index" options={{ headerShown: false }} />
-          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+        <Stack screenOptions={{ headerShown: false, animation: 'none' }}>
+          <Stack.Screen name="index" />
+          <Stack.Screen name="(auth)" />
+          <Stack.Screen name="(tabs)" />
         </Stack>
       </SQLiteProvider>
     </ActionSheetProvider>

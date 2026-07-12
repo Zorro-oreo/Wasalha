@@ -1,6 +1,4 @@
-import { db } from './db';
-
-export const init_User_Tables = async () => {
+export const init_User_Tables = async (db: any) => {
     try{
 
         await db.execAsync(`
