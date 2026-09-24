@@ -547,11 +547,11 @@ export default function UserAuthScreen() {
         <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
           <View style={{ flex: 1 }}>
             {Platform.OS === "ios" ? (
-              <View style={StyleSheet.absoluteFillObject}>
+              <View style={StyleSheet.absoluteFill}>
                 <SignInBox style={{ alignSelf: "center" }} />
               </View>
             ) : (
-              <View style={{ ...StyleSheet.absoluteFillObject }}>
+              <View style={{ ...StyleSheet.absoluteFill }}>
                 <SignInBox
                   width={screenWidth}
                   height={signInBoxHeight}
@@ -1546,7 +1546,7 @@ const styles = StyleSheet.create({
     zIndex: 3,
   },
   svgShapeOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     zIndex: 4,
   },
   headerContent: {

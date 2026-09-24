@@ -1,13 +1,12 @@
 import { useSQLiteContext } from "expo-sqlite";
 import { useEffect, useState } from "react";
 import {
-  Animated,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from "react-native";
-import { useAnimatedStyle, withTiming } from "react-native-reanimated";
+import Animated, { useAnimatedStyle, withTiming } from "react-native-reanimated";
 import Cash from "../components/tabs/Payments/Cash.svg";
 import InUse from "../components/tabs/Payments/InUse.svg";
 import MC from "../components/tabs/Payments/MC.svg";
