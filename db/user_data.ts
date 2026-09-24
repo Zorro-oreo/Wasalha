@@ -44,6 +44,7 @@ export const init_User_Tables = async (db: any) => {
                 is_online INTEGER DEFAULT 0,
                 total_rides INTEGER DEFAULT 0,
                 total_earnings REAL DEFAULT 0.00,
+                is_simulated_instructor INTEGER DEFAULT 0,
                 created_at TEXT DEFAULT CURRENT_TIMESTAMP,
                 updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (user_id) REFERENCES Users(id)

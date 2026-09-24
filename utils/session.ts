@@ -1,7 +1,7 @@
-import * as SecureStore from 'expo-secure-store';
+import * as SecureStore from "expo-secure-store";
 
 const SESSION_KEY = 'user_session';
-const SESSION_DURATION = 30 * 24 * 60 * 60 * 1000; // 30 Days
+const SESSION_DURATION = 30 * 24 * 60 * 60 * 1000;
 
 export const saveSession = async(user: { id: string; email: string; fname: string }) => {
     const sessionData = {
